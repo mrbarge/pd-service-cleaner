@@ -8,8 +8,8 @@ import sys
 from pdpyras import APISession
 
 
-def get_pd_services(session):
-    services = list(session.iter_all('services'))
+def get_pd_services(session, team):
+    services = list(session.iter_all('services', params={'query': 'devshift.org-hive-cluster', 'team_ids[]': [team], 'limit': 20}))
     return services
 
 
@@ -91,6 +91,8 @@ def init_argparse():
                         help='Path to file containing PD API Token [required]')
     parser.add_argument('--escalation_policy', '-e', required=False, default='PNCPMTV',
                         help='Escalation policy ID to identify clusters')
+    parser.add_argument('--team', '-t', required=False,
+                        help='Team owning clusters to delete')
     parser.add_argument('--dry-run', '-d', required=False, action='store_true',
                         help='Perform a dry run')
 
@@ -103,10 +105,11 @@ if __name__ == '__main__':
     parser = init_argparse()
     args = parser.parse_args()
 
+    logging.info("Retrieving current list of OCM staging clusters")
     clusters = get_ocm_clusters()
-    print(clusters)
     pd_session = init_pd(args.pd_api_token)
-    services = get_pd_services(pd_session)
+    logging.info("Retrieving current list of PagerDuty services")
+    services = get_pd_services(pd_session, args.team)
 
     for service in services:
         if not is_staging(service, args.escalation_policy):
@@ -115,7 +118,6 @@ if __name__ == '__main__':
             continue
 
         # found a deletion candidate
-
-        logging.info(f"Deleting service {service['name']}")
+        logging.info(f"Deleting service {service['name']} / {service['id']}")
         if not args.dry_run:
-            pd_session.rdelete(f"/services/{service['id']}")
+           pd_session.rdelete(f"/services/{service['id']}")
